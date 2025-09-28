@@ -226,7 +226,7 @@ def checkout(request, total=0, quantity=0, cart_items=None):
 
     try:
         # check if proforma for this cart already exists
-        existing_proforma_invoice = ProformaInvoice.objects.get(user=request.user)
+        existing_proforma_invoice = ProformaInvoice.objects.get(user=request.user, is_ordered=False)
         print(f"existing_proforma_invoice ==> {existing_proforma_invoice}")
 
         # update cart contents if proforma for this cart was made before
@@ -242,11 +242,14 @@ def checkout(request, total=0, quantity=0, cart_items=None):
         proforma.user = request.user
 
         # Generate order number
-        yr = int(datetime.date.today().strftime("%Y"))
-        dt = int(datetime.date.today().strftime("%d"))
-        mt = int(datetime.date.today().strftime("%m"))
-        d = datetime.date(yr, mt, dt)
-        current_date = d.strftime("%Y%m%d") #20250925
+        now = datetime.datetime.now()
+        yr = str(now.strftime("%Y"))
+        mt = str(now.strftime("%m"))
+        dt = str(now.strftime("%d"))
+        hr = str(now.strftime("%H"))
+        mn = str(now.strftime("%M"))
+        sc = str(now.strftime("%S"))
+        current_date = yr + mt + dt + hr + mn + sc
 
         proforma.proforma_order_number = current_date + str(request.user)
         proforma.item_total = total
@@ -258,8 +261,6 @@ def checkout(request, total=0, quantity=0, cart_items=None):
         proforma = ProformaInvoice.objects.get(proforma_order_number=proforma_order_number)
         print(f"new_proforma_invoice ==> {proforma}")
 
-
-    print(f"proforma_order_number ==> {proforma_order_number}")
 
     context = {
         "total": total,

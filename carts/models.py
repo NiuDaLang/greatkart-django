@@ -27,7 +27,7 @@ class CartItem(models.Model):
 
 class ProformaInvoice(models.Model):
     user = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True)
-    proforma_order_number = models.CharField(max_length=20)
+    proforma_order_number = models.CharField(max_length=100)
     item_total = models.FloatField(default=0)
     tax = models.FloatField(default=0)
     order_total = models.FloatField(default=0)

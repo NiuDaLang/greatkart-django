@@ -190,6 +190,9 @@ def paypal_order_success(request, order_id=None):
 
     # (4) Clear Cart & Proforma Invoice
     CartItem.objects.filter(user=request.user).delete()
+    proforma_order = ProformaInvoice.objects.get(proforma_order_number=order.order_number)
+    proforma_order.is_ordered = True
+    proforma_order.save()
 
     # (5) Send order received email to customer
     mail_subject = "Thank you for your order!"
