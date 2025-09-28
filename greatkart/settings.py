@@ -28,6 +28,7 @@ SECRET_KEY = "django-insecure-s&c3_1vv7#)l_y*94e_cb_(=u!zt$cm^7moek)g2ofx@-^@9d2
 DEBUG = True
 
 ALLOWED_HOSTS = []
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin-allow-popups"
 
 
 # Application definition
@@ -44,6 +45,8 @@ INSTALLED_APPS = [
     "accounts",
     "store",
     "carts",
+    "orders",
+    # 'paypal.standard.ipn',
 ]
 
 MIDDLEWARE = [
@@ -154,3 +157,11 @@ EMAIL_HOST_USER=config("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD=config("EMAIL_HOST_PASSWORD")
 DEFAULT_TO_EMAIL=config("DEFAULT_TO_EMAIL")
 EMAIL_USE_TLS = True
+
+# PAYPAL Configuration
+PAYPAL_TEST = True
+PAYPAL_RECEIVER_EMAIL=config("PAYPAL_RECEIVER_EMAIL")
+
+PAYPAL_CLIENT_ID=config("PAYPAL_CLIENT_ID")
+PAYPAL_CLIENT_SECRET=config("PAYPAL_CLIENT_SECRET")
+PAYPAL_ACCESS_TOKEN=config("PAYPAL_ACCESS_TOKEN")

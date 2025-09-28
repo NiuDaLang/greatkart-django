@@ -1,10 +1,11 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from store.models import Product
-from .models import Cart, CartItem
+from .models import Cart, CartItem, ProformaInvoice
 from django.core.exceptions import ObjectDoesNotExist
 from django.http import HttpResponse
 from store.models import Variation
 from django.contrib.auth.decorators import login_required
+import datetime
 
 # Create your views here.
 def _cart_id(request):
@@ -216,17 +217,56 @@ def checkout(request, total=0, quantity=0, cart_items=None):
         for cart_item in cart_items:
             total += (cart_item.product.price * cart_item.quantity)
             quantity += cart_item.quantity
+            print(f"total: {total}, quantity: {quantity}")
         tax = (2 * total) / 100
         grand_total = total + tax
+        print(f"item_total: {total}, item_quantity: {quantity}")
+    except:
+        raise ObjectDoesNotExist(f"CartItem Doesn't Exist")
+
+    try:
+        # check if proforma for this cart already exists
+        existing_proforma_invoice = ProformaInvoice.objects.get(user=request.user)
+        print(f"existing_proforma_invoice ==> {existing_proforma_invoice}")
+
+        # update cart contents if proforma for this cart was made before
+        proforma_order_number = existing_proforma_invoice.proforma_order_number
+        existing_proforma_invoice.item_total = total
+        existing_proforma_invoice.tax = tax
+        existing_proforma_invoice.order_total = grand_total
+        existing_proforma_invoice.save()
 
     except ObjectDoesNotExist:
-        pass
-    
+        # if proforma doesn't not exist, create a new one
+        proforma = ProformaInvoice()
+        proforma.user = request.user
+
+        # Generate order number
+        yr = int(datetime.date.today().strftime("%Y"))
+        dt = int(datetime.date.today().strftime("%d"))
+        mt = int(datetime.date.today().strftime("%m"))
+        d = datetime.date(yr, mt, dt)
+        current_date = d.strftime("%Y%m%d") #20250925
+
+        proforma.proforma_order_number = current_date + str(request.user)
+        proforma.item_total = total
+        proforma.tax = tax
+        proforma.order_total = grand_total
+        proforma.save()
+        proforma_order_number = proforma.proforma_order_number
+
+        proforma = ProformaInvoice.objects.get(proforma_order_number=proforma_order_number)
+        print(f"new_proforma_invoice ==> {proforma}")
+
+
+    print(f"proforma_order_number ==> {proforma_order_number}")
+
     context = {
         "total": total,
         "quantity": quantity,
         "cart_items": cart_items,
         "tax": tax,
         "grand_total": grand_total,
+        "proforma_order_number": proforma_order_number,
     }
     return render(request, "store/checkout.html", context)

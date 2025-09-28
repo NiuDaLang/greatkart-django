@@ -23,3 +23,17 @@ class CartItem(models.Model):
     
     def __unicode__(self):
         return self.product
+
+
+class ProformaInvoice(models.Model):
+    user = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True)
+    proforma_order_number = models.CharField(max_length=20)
+    item_total = models.FloatField(default=0)
+    tax = models.FloatField(default=0)
+    order_total = models.FloatField(default=0)
+    is_ordered = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.proforma_order_number
