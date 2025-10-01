@@ -11,9 +11,6 @@ from django.template.loader import render_to_string
 from django.contrib.sites.shortcuts import get_current_site
 from django.core.mail import EmailMessage
 
-
-
-
 #$$$$ paypal - SDK - paypal-server-sdk $$$$#
 import logging
 
@@ -122,6 +119,7 @@ def paypal_orders(request, proforma_order_number=None):
 
 
 def paypal_capture_orders(request, order_id=None):
+    # order_id ==> transaction id
     order = orders_controller.capture_order(
         {"id": order_id, "prefer": "return=representation"}
     )
@@ -147,7 +145,6 @@ def paypal_order_success(request, order_id=None):
     amount_paid = 0
     for unit in purchase:
         amount_paid += float(unit['amount']['value'])
-
 
     # (1) Store transaction details inside Payment model
     payment = Payment(
@@ -190,6 +187,7 @@ def paypal_order_success(request, order_id=None):
 
     # (4) Clear Cart & Proforma Invoice
     CartItem.objects.filter(user=request.user).delete()
+    print("cart item cleared")
     proforma_order = ProformaInvoice.objects.get(proforma_order_number=order.order_number)
     proforma_order.is_ordered = True
     proforma_order.save()
@@ -204,10 +202,9 @@ def paypal_order_success(request, order_id=None):
     send_email = EmailMessage(mail_subject, message, to=[to_email])
     send_email.send()
 
-
     # (6) Send order number and payment transaction id back to front-end onApprove() via JsonResponse
     data = {
-         "order_number": order_id,
+         "order_number": order.order_number,
          "transaction_id": body["transcation_id"],
     }
     return JsonResponse(data)

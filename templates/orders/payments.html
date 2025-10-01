@@ -128,6 +128,8 @@
 
 <!-- PayPal -->
 <script defer>
+  const order_number = "{{proforma_order_number}}"
+
   const paypalButtons = window.paypal.Buttons({
    style: {
         shape: "pill",
@@ -136,113 +138,289 @@
         label: "paypal",
     },
    
-   async createOrder() {
-    order_number = "{{proforma_order_number}}"
-        try {
-            const response = await fetch(`/orders/paypal_orders?proforma_order_number=${order_number}`);
-            const orderData = await response.json();
-            // console.log(`orderData: ${JSON.stringify(orderData)}`)
+  async createOrder() {
+      try {
+          const response = await fetch(`/orders/paypal_orders?proforma_order_number=${order_number}`);
+          const orderData = await response.json();
+          console.log(`orderData: ${JSON.stringify(orderData)}`)
 
-            if (orderData.id) {
-                return orderData.id;
-            }
-            const errorDetail = orderData?.details?.[0];
-            const errorMessage = errorDetail
-                ? `${errorDetail.issue} ${errorDetail.description} (${orderData.debug_id})`
-                : JSON.stringify(orderData);
+          if (orderData.id) {
+              return orderData.id;
+          }
+          const errorDetail = orderData?.details?.[0];
+          const errorMessage = errorDetail
+              ? `${errorDetail.issue} ${errorDetail.description} (${orderData.debug_id})`
+              : JSON.stringify(orderData);
 
-            throw new Error(errorMessage);
-        } catch (error) {
-            console.error(error);
-            resultMessage(`Could not initiate PayPal Checkout...<br><br>${error}`);
-        }
-    },
-    
-   async onApprove(data, actions) {
-        const csrf_token = document.querySelector('[name=csrfmiddlewaretoken]').value 
+          throw new Error(errorMessage);
+      } catch (error) {
+          console.error(error);
+          resultMessage(`Could not initiate PayPal Checkout...<br><br>${error}`);
+      }
+  },
+  
+  async onApprove(data, actions) {
+      const csrf_token = document.querySelector('[name=csrfmiddlewaretoken]').value
+      
+      // *** data ***
+      // billingToken : null
+      // facilitatorAccessToken : "bjmffaSj8tvWVzCWwJQXXXXXXX"
+      // orderID : "9MG16871JE0906614" --> transaction id
+      // payerID : "XXXXX"
+      // paymentID : "XXXXXX"
+      // paymentSource : "paypal"
 
-        try {
-            const response = await fetch(
-                `/orders/paypal_orders/${data.orderID}/capture/`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-CSRFToken": csrf_token,
-                        "mode": 'same-origin',
-                    },
-                }
-            );
 
-            const orderData = await response.json();
-            // Three cases to handle:
-            //   (1) Recoverable INSTRUMENT_DECLINED -> call actions.restart()
-            //   (2) Other non-recoverable errors -> Show a failure message
-            //   (3) Successful transaction -> Show confirmation or thank you message
+      try {
+          const response = await fetch(
+              `/orders/paypal_orders/${data.orderID}/capture/`,
+              {
+                  method: "POST",
+                  headers: {
+                      "Content-Type": "application/json",
+                      "X-CSRFToken": csrf_token,
+                      "mode": 'same-origin',
+                  },
+              }
+          );
 
-            const errorDetail = orderData?.details?.[0];
+          const orderData = await response.json();
+          // Three cases to handle:
+          //   (1) Recoverable INSTRUMENT_DECLINED -> call actions.restart()
+          //   (2) Other non-recoverable errors -> Show a failure message
+          //   (3) Successful transaction -> Show confirmation or thank you message
 
-            if (errorDetail?.issue === "INSTRUMENT_DECLINED") {
-                // (1) Recoverable INSTRUMENT_DECLINED -> call actions.restart()
-                // recoverable state, per
-                // https://developer.paypal.com/docs/checkout/standard/customize/handle-funding-failures/
-                return actions.restart();
-            } else if (errorDetail) {
-                // (2) Other non-recoverable errors -> Show a failure message
-                // window.location.replace(`/orders/paypal_orders/${data.orderID}/failure/`)
+          const errorDetail = orderData?.details?.[0];
 
-                throw new Error(
-                    `${errorDetail.description} (${orderData.debug_id})`
-                );
+          if (errorDetail?.issue === "INSTRUMENT_DECLINED") {
+              // (1) Recoverable INSTRUMENT_DECLINED -> call actions.restart()
+              // recoverable state, per
+              // https://developer.paypal.com/docs/checkout/standard/customize/handle-funding-failures/
+              return actions.restart();
+          } else if (errorDetail) {
+              // (2) Other non-recoverable errors -> Show a failure message
+              // window.location.replace(`/orders/paypal_orders/${data.orderID}/failure/`)
 
-            } else if (!orderData.purchase_units) {
-                throw new Error(JSON.stringify(orderData));
-            } else {
-                // (3) Successful transaction -> Show confirmation or thank you message
-                // Or go to another URL:  actions.redirect('thank_you.html');
-                const transaction =
-                    orderData?.purchase_units?.[0]?.payments?.captures?.[0] ||
-                    orderData?.purchase_units?.[0]?.payments
-                        ?.authorizations?.[0];
+              throw new Error(
+                  `${errorDetail.description} (${orderData.debug_id})`
+              );
 
-                console.log(
-                    "Capture result",
-                    orderData,
-                    JSON.stringify(orderData, null, 2)
-                );
+          } else if (!orderData.purchase_units) {
+              throw new Error(JSON.stringify(orderData));
+          } else {
+              // (3) Successful transaction -> Show confirmation or thank you message
+              // Or go to another URL:  actions.redirect('thank_you.html');
+              const transaction =
+                  orderData?.purchase_units?.[0]?.payments?.captures?.[0] ||
+                  orderData?.purchase_units?.[0]?.payments
+                      ?.authorizations?.[0];
 
-                // Database Update at the backend side
-                const response = await fetch(`/orders/paypal_orders/${data.orderID}/success/`, 
-                    {
-                        method: 'POST', // or 'GET'
-                        headers: {
-                            "Content-Type": "application/json",
-                            "X-CSRFToken": csrf_token,
-                            "mode": 'same-origin'
-                        },
-                        body: JSON.stringify({
-                            order_number: order_number,
-                            transcation_id: orderData.id,
-                            payment_method: "PayPal",
-                            purchase: orderData.purchase_units,
-                            status: orderData.status,
-                            order_data: orderData,
-                        }) // Optional: send data to backend
-                    })
+              console.log(
+                  "Capture result",
+                  orderData,
+                  JSON.stringify(orderData, null, 2)
+              );
 
-                const backendResponse = await response.json();
-                console.log(backendResponse)
-                // await window.location.href = "/orders/paypal_orders/?order_number=" + order_number + "&transaction_id=" + data.orderID;
-                await window.location.replace(`/orders/paypal_orders/order_complete/?order_number=${order_number}&transaction_id=${data.orderID}`)
-            }
-        } catch (error) {
-            console.error(error);
-            resultMessage(
-                `Sorry, your transaction could not be processed...<br><br>${error}`
-            );
-        }
-    },
-   
+              // *** Order Data ***
+              // {
+              //   "create_time": "2025-09-30T05:18:27Z",
+              //   "update_time": "2025-09-30T05:18:40Z",
+              //   "id": "9MG16871JE0906614",
+              //   "payment_source": {
+              //     "paypal": {
+              //       "email_address": "greatkart20250925@personal.example.com",
+              //       "account_id": "5SNK4F3W4LZRU",
+              //       "account_status": "VERIFIED",
+              //       "name": {
+              //         "given_name": "John",
+              //         "surname": "Doe"
+              //       },
+              //       "address": {
+              //         "country_code": "US"
+              //       }
+              //     }
+              //   },
+              //   "intent": "CAPTURE",
+              //   "payer": {
+              //     "email_address": "greatkart20250925@personal.example.com",
+              //     "payer_id": "5SNK4F3W4LZRU",
+              //     "name": {
+              //       "given_name": "John",
+              //       "surname": "Doe"
+              //     },
+              //     "address": {
+              //       "country_code": "US"
+              //     }
+              //   },
+              //   "purchase_units": [
+              //     {
+              //       "reference_id": "default",
+              //       "amount": {
+              //         "currency_code": "USD",
+              //         "value": "19.38",
+              //         "breakdown": {
+              //           "item_total": {
+              //             "currency_code": "USD",
+              //             "value": "19.00"
+              //           },
+              //           "shipping": {
+              //             "currency_code": "USD",
+              //             "value": "0.00"
+              //           },
+              //           "handling": {
+              //             "currency_code": "USD",
+              //             "value": "0.00"
+              //           },
+              //           "tax_total": {
+              //             "currency_code": "USD",
+              //             "value": "0.38"
+              //           },
+              //           "insurance": {
+              //             "currency_code": "USD",
+              //             "value": "0.00"
+              //           },
+              //           "shipping_discount": {
+              //             "currency_code": "USD",
+              //             "value": "0.00"
+              //           }
+              //         }
+              //       },
+              //       "payee": {
+              //         "email_address": "greatkart20250925@business.example.com",
+              //         "merchant_id": "NHEKU2LDKMLP6"
+              //       },
+              //       "description": "ATX-Jeans",
+              //       "items": [
+              //         {
+              //           "name": "ATX-Jeans",
+              //           "unit_amount": {
+              //             "currency_code": "USD",
+              //             "value": "19.00"
+              //           },
+              //           "quantity": "1",
+              //           "tax": {
+              //             "currency_code": "USD",
+              //             "value": "0.00"
+              //           },
+              //           "description": "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book.",
+              //           "sku": "[<QuerySet [<Variation: Blue>, <Variation: Small>]>]",
+              //           "category": "PHYSICAL_GOODS"
+              //         }
+              //       ],
+              //       "shipping": {
+              //         "name": {
+              //           "full_name": "John Doe"
+              //         },
+              //         "address": {
+              //           "country_code": "US",
+              //           "address_line_1": "1 Main St",
+              //           "admin_area_2": "San Jose",
+              //           "admin_area_1": "CA",
+              //           "postal_code": "95131"
+              //         }
+              //       },
+              //       "payments": {
+              //         "captures": [
+              //           {
+              //             "status": "COMPLETED",
+              //             "id": "46V59809J51476349",
+              //             "amount": {
+              //               "currency_code": "USD",
+              //               "value": "19.38"
+              //             },
+              //             "seller_protection": {
+              //               "status": "ELIGIBLE",
+              //               "dispute_categories": [
+              //                 "ITEM_NOT_RECEIVED",
+              //                 "UNAUTHORIZED_TRANSACTION"
+              //               ]
+              //             },
+              //             "final_capture": true,
+              //             "seller_receivable_breakdown": {
+              //               "gross_amount": {
+              //                 "currency_code": "USD",
+              //                 "value": "19.38"
+              //               },
+              //               "paypal_fee": {
+              //                 "currency_code": "USD",
+              //                 "value": "1.17"
+              //               },
+              //               "net_amount": {
+              //                 "currency_code": "USD",
+              //                 "value": "18.21"
+              //               }
+              //             },
+              //             "disbursement_mode": "INSTANT",
+              //             "links": [
+              //               {
+              //                 "href": "https://api.sandbox.paypal.com/v2/payments/captures/46V59809J51476349",
+              //                 "rel": "self",
+              //                 "method": "GET"
+              //               },
+              //               {
+              //                 "href": "https://api.sandbox.paypal.com/v2/payments/captures/46V59809J51476349/refund",
+              //                 "rel": "refund",
+              //                 "method": "POST"
+              //               },
+              //               {
+              //                 "href": "https://api.sandbox.paypal.com/v2/checkout/orders/9MG16871JE0906614",
+              //                 "rel": "up",
+              //                 "method": "GET"
+              //               }
+              //             ],
+              //             "create_time": "2025-09-30T05:18:40Z",
+              //             "update_time": "2025-09-30T05:18:40Z"
+              //           }
+              //         ]
+              //       }
+              //     }
+              //   ],
+              //   "status": "COMPLETED",
+              //   "links": [
+              //     {
+              //       "href": "https://api.sandbox.paypal.com/v2/checkout/orders/9MG16871JE0906614",
+              //       "rel": "self",
+              //       "method": "GET"
+              //     }
+              //   ]
+              // }
+              // Database Update at the backend side
+
+              const response = await fetch(`/orders/paypal_orders/${data.orderID}/success/`, 
+                  {
+                      method: 'POST', // or 'GET'
+                      headers: {
+                          "Content-Type": "application/json",
+                          "X-CSRFToken": csrf_token,
+                          "mode": 'same-origin'
+                      },
+                      body: JSON.stringify({
+                          order_number: order_number,
+                          transcation_id: orderData.id,
+                          payment_method: "PayPal",
+                          purchase: orderData.purchase_units,
+                          status: orderData.status,
+                          order_data: orderData,
+                      }) // Optional: send data to backend
+                  })
+
+              const backendResponse = await response.json();
+              // console.log(backendResponse)
+              // *** backend response ***
+              // order_number: "20250930054113gogocfa@yahoo.co.jp"
+              // transaction_id: "8D527909RJ589221C"
+
+              // await window.location.href = "/orders/paypal_orders/?order_number=" + order_number + "&transaction_id=" + data.orderID;
+              await window.location.replace(`/orders/paypal_orders/order_complete/?order_number=${order_number}&transaction_id=${data.orderID}`)
+          }
+      } catch (error) {
+          console.error(error);
+          resultMessage(
+              `Sorry, your transaction could not be processed...<br><br>${error}`
+          );
+      }
+  },
+  
 });
 paypalButtons.render("#paypal-button-container");
 
