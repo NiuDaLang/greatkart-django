@@ -6,3 +6,6 @@ __pycache__/
 .git/
 .DS_Store
 .env-sample
+db.sqlite3
+db.sqlite3-journal
+media
