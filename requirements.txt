@@ -16,7 +16,6 @@ jsonpointer==2.4
 msgpack==1.1.1
 paypal-server-sdk==1.1.0
 pillow==11.3.0
-psycopg2==2.9.10
 python-dateutil==2.9.0.post0
 python-decouple==3.8
 python-ipware==3.0.0
